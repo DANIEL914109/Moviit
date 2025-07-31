@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Conductor - Moviit</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    #map {
+      height: 90vh;
+      width: 100%;
+    }
+    button {
+      margin-top: 10px;
+      padding: 1em 2em;
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1em;
+      cursor: pointer;
+    }
+    .status {
+      margin: 1em 0;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Conductor - Compartiendo ubicación</h2>
+  <div class="status" id="status">Esperando acción...</div>
+  <button onclick="startSharing()">Iniciar rastreo</button>
+  <div id="map"></div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+    const firebaseConfig = {
+          apiKey: "AIzaSyCcVJ7HJM3gS10BcCNdxGmRx5ypzTizNYg",
+          authDomain: "moviit-928f2.firebaseapp.com",
+          databaseURL: "https://moviit-928f2-default-rtdb.firebaseio.com",
+          projectId: "moviit-928f2",
+          storageBucket: "moviit-928f2.firebasestorage.app",
+          messagingSenderId: "753483147976",
+          appId: "1:753483147976:web:1057942a7b78444ebf13fd",
+          measurementId: "G-GKR3BTMZFJ"
+        };
+
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+
+    let map;
+    let marker;
+    let watchId;
+
+    // Inicializa el mapa con ubicación inicial genérica
+    window.initMap = function () {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 19.4326, lng: -99.1332 }, // CDMX temporal
+        zoom: 15
+      });
+
+      marker = new google.maps.Marker({
+        position: { lat: 19.4326, lng: -99.1332 },
+        map,
+        title: "Tu ubicación"
+      });
+    };
+
+    // Inicia el rastreo de ubicación
+    window.startSharing = () => {
+      const status = document.getElementById('status');
+
+      if (!navigator.geolocation) {
+        status.innerText = "Geolocalización no soportada";
+        return;
+      }
+
+      status.innerText = "Rastreo activado";
+
+      watchId = navigator.geolocation.watchPosition(
+        position => {
+          const { latitude, longitude } = position.coords;
+          const driverId = "conductor_1";
+
+          // Envía a Firebase
+          set(ref(database, 'conductores/' + driverId), {
+            lat: latitude,
+            lng: longitude,
+            timestamp: Date.now()
+          });
+
+          // Actualiza mapa y marcador
+          const pos = { lat: latitude, lng: longitude };
+          marker.setPosition(pos);
+          map.panTo(pos);
+
+          status.innerText = `Ubicación: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        },
+        error => {
+          status.innerText = "Error: " + error.message;
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+      );
+    };
+  </script>
+
+  <!-- Google Maps JavaScript API -->
+  <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBm-0RbxDUhygQlvNwJSGxxbbwarll1q8o&callback=initMap">
+  </script>
+
+</body>
+</html>
