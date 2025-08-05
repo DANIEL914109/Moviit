@@ -2,8 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Conductor - Login</title>
+  <title>Conductor - Moviit</title>
   <style>
     body {
       margin: 0;
@@ -13,50 +12,65 @@
     #map {
       height: 90vh;
       width: 100%;
-      
-    }
-    .hidden {
       display: none;
     }
-    input, button, select {
-      padding: 10px;
-      margin: 10px;
+    button {
+      padding: 1em 2em;
       font-size: 1em;
+      margin: 1em;
+      border-radius: 8px;
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    select, input {
+      padding: 0.7em 1em;
+      font-size: 1em;
+      margin: 0.5em;
+      border-radius: 6px;
+      border: 2px solid #ccc;
+      width: 250px;
+      box-sizing: border-box;
+    }
+    .status {
+      margin: 1em 0;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
 
-  <div id="login-container">
-    <h2>Selecciona tu ruta</h2>
+  <h2>Conductor - Compartiendo ubicación</h2>
 
-    <select id="route">
-      <option value="">-- Selecciona una ruta --</option>
+  <div id="formulario">
+    <label for="ruta">Selecciona tu ruta:</label><br>
+    <select id="ruta">
+      <option value="">-- Elige una ruta --</option>
       <option value="LM-V01">LM-V01</option>
       <option value="T01">T01</option>
       <option value="T02">T02</option>
       <option value="T03">T03</option>
-    </select><br />
+    </select><br>
 
-    <input type="password" id="password" placeholder="Clave de acceso" required /><br />
-    <button onclick="login()">Ingresar</button>
-    <div id="login-status"></div>
-  </div>
+    <label for="conductorId">ID de conductor:</label><br>
+    <input type="text" id="conductorId" placeholder="Ejemplo: conductor_1" /><br>
 
-  <div id="tracking-container" class="hidden">
-    <h2>Conductor - Compartiendo ubicación</h2>
-    <div class="status" id="status">Esperando acción...</div>
+    <label for="contrasena">Contraseña:</label><br>
+    <input type="password" id="contrasena" placeholder="Ingresa la contraseña" /><br>
+
     <button onclick="startSharing()">Iniciar rastreo</button>
-    <button onclick="stopSharing()">Detener rastreo</button>
-    <div id="map"></div>
   </div>
 
-  <!-- Firebase + Google Maps -->
+  <button id="stopButton" style="display:none;" onclick="stopSharing()">Detener rastreo</button>
+
+  <div class="status" id="status">Esperando acción...</div>
+  <div id="map"></div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-    // Configuración de Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyCcVJ7HJM3gS10BcCNdxGmRx5ypzTizNYg",
       authDomain: "moviit-928f2.firebaseapp.com",
@@ -70,52 +84,24 @@
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
 
-    let selectedRoute = null;
+    let map;
+    let marker;
+    let watchId;
+    let selectedRoute = "";
+    let conductorId = "";
+    let lastLat = null;
+    let lastLng = null;
 
-    const loginContainer = document.getElementById("login-container");
-    const trackingContainer = document.getElementById("tracking-container");
-    const loginStatus = document.getElementById("login-status");
-
-    // 🔐 Función login con verificación de clave desde Firebase
-    window.login = async () => {
-      const route = document.getElementById("route").value;
-      const password = document.getElementById("password").value;
-
-      if (!route) {
-        loginStatus.innerText = "Por favor selecciona una ruta.";
-        return;
-      }
-
-      const dbRef = ref(database);
-
-      try {
-        const snapshot = await get(child(dbRef, `rutas/${route}/clave`));
-        if (snapshot.exists()) {
-          const claveReal = snapshot.val();
-          if (password === claveReal) {
-            selectedRoute = route;
-            loginStatus.innerText = "Acceso concedido.";
-            loginContainer.classList.add("hidden");
-            trackingContainer.classList.remove("hidden");
-          } else {
-            loginStatus.innerText = "Clave incorrecta.";
-          }
-        } else {
-          loginStatus.innerText = "Ruta no registrada.";
-        }
-      } catch (error) {
-        console.error(error);
-        loginStatus.innerText = "Error al conectar con Firebase.";
-      }
-    };
-
-    // 🔄 RASTREO DE UBICACIÓN
-    let map, marker, watchId, lastLat, lastLng;
+    function hasMoved(lat, lng) {
+      if (lastLat === null || lastLng === null) return true;
+      const diff = Math.abs(lat - lastLat) + Math.abs(lng - lastLng);
+      return diff > 0.0001;
+    }
 
     window.initMap = function () {
       map = new google.maps.Map(document.getElementById("map"), {
         center: { lat: 19.4326, lng: -99.1332 },
-        zoom: 16
+        zoom: 15
       });
 
       marker = new google.maps.Marker({
@@ -125,60 +111,109 @@
       });
     };
 
-    function hasMoved(lat, lng) {
-      const threshold = 0.0001;
-      return !lastLat || Math.abs(lat - lastLat) > threshold || Math.abs(lng - lastLng) > threshold;
-    }
+    window.startSharing = async () => {
+      selectedRoute = document.getElementById("ruta").value.trim();
+      conductorId = document.getElementById("conductorId").value.trim();
+      const contraseñaIngresada = document.getElementById("contrasena").value.trim();
+      const status = document.getElementById("status");
 
-    window.startSharing = () => {
-      const status = document.getElementById('status');
-      if (!selectedRoute) return;
-
-      if (!navigator.geolocation) {
-        status.innerText = "Geolocalización no soportada";
+      if (!selectedRoute) {
+        status.innerText = "⚠️ Por favor selecciona una ruta.";
+        status.style.color = "red";
+        return;
+      }
+      if (!conductorId) {
+        status.innerText = "⚠️ Por favor ingresa un ID.";
+        status.style.color = "red";
+        return;
+      }
+      if (!contraseñaIngresada) {
+        status.innerText = "⚠️ Ingresa la contraseña.";
+        status.style.color = "red";
         return;
       }
 
-      status.innerText = "Rastreo activado";
+      try {
+        const rutaSnapshot = await get(child(ref(database), `rutas/${selectedRoute}/clave`));
+        if (!rutaSnapshot.exists()) {
+          status.innerText = "❌ Ruta no registrada en Firebase.";
+          status.style.color = "red";
+          return;
+        }
 
-      watchId = navigator.geolocation.watchPosition(
-        position => {
-          const { latitude, longitude } = position.coords;
+        const claveFirebase = rutaSnapshot.val();
+        if (contraseñaIngresada !== claveFirebase) {
+          status.innerText = "❌ Contraseña incorrecta.";
+          status.style.color = "red";
+          return;
+        }
 
-          if (hasMoved(latitude, longitude)) {
-            set(ref(database, 'conductores/' + selectedRoute), {
-              lat: latitude,
-              lng: longitude,
-              timestamp: Date.now()
-            });
+        // Ocultar formulario y mostrar botón de detener y mapa
+        document.getElementById("formulario").style.display = "none";
+        document.getElementById("stopButton").style.display = "inline-block";
+        document.getElementById("map").style.display = "block";
 
-            lastLat = latitude;
-            lastLng = longitude;
-          }
+        status.style.color = "green";
+        status.innerText = "✅ Rastreo activado";
 
-          const pos = { lat: latitude, lng: longitude };
-          marker.setPosition(pos);
-          map.panTo(pos);
+        if (!navigator.geolocation) {
+          status.innerText = "Geolocalización no soportada";
+          return;
+        }
 
-          status.innerText = `Ubicación: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-        },
-        error => {
-          status.innerText = "Error: " + error.message;
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
-      );
+        watchId = navigator.geolocation.watchPosition(
+          position => {
+            const { latitude, longitude } = position.coords;
+
+            if (hasMoved(latitude, longitude)) {
+              set(ref(database, `conductores/${selectedRoute}/${conductorId}`), {
+                lat: latitude,
+                lng: longitude,
+                timestamp: Date.now()
+              });
+              lastLat = latitude;
+              lastLng = longitude;
+            }
+
+            const pos = { lat: latitude, lng: longitude };
+            marker.setPosition(pos);
+            map.panTo(pos);
+
+            status.innerText = `✅ Ruta ${selectedRoute} - ${conductorId}: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+          },
+          error => {
+            status.innerText = "Error: " + error.message;
+          },
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+        );
+      } catch (error) {
+        status.innerText = "❌ Error al verificar la contraseña.";
+        status.style.color = "red";
+        console.error(error);
+      }
     };
 
     window.stopSharing = () => {
       if (watchId) {
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
-        document.getElementById('status').innerText = "Rastreo detenido";
+
+        // Mostrar formulario y ocultar botón de detener y mapa
+        document.getElementById("formulario").style.display = "block";
+        document.getElementById("stopButton").style.display = "none";
+        document.getElementById("map").style.display = "none";
+
+        document.getElementById("status").innerText = "🔴 Rastreo detenido";
+        document.getElementById("status").style.color = "black";
+
+        // Limpiar valores y posición para seguridad
+        document.getElementById("contrasena").value = "";
+        lastLat = null;
+        lastLng = null;
       }
     };
   </script>
 
-  <!-- Google Maps API -->
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBm-0RbxDUhygQlvNwJSGxxbbwarll1q8o&callback=initMap">
   </script>
