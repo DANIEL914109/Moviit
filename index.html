@@ -67,6 +67,26 @@
   <div class="status" id="status">Esperando acción...</div>
   <div id="map"></div>
 
+  <!-- Script global para Google Maps -->
+  <script>
+    let map;
+    let marker;
+
+    window.initMap = function () {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 19.4326, lng: -99.1332 },
+        zoom: 15
+      });
+
+      marker = new google.maps.Marker({
+        position: { lat: 19.4326, lng: -99.1332 },
+        map,
+        title: "Tu ubicación"
+      });
+    };
+  </script>
+
+  <!-- Script módulo para Firebase y lógica -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
@@ -84,8 +104,6 @@
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
 
-    let map;
-    let marker;
     let watchId;
     let selectedRoute = "";
     let conductorId = "";
@@ -97,19 +115,6 @@
       const diff = Math.abs(lat - lastLat) + Math.abs(lng - lastLng);
       return diff > 0.0001;
     }
-
-    window.initMap = function () {
-      map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: 19.4326, lng: -99.1332 },
-        zoom: 15
-      });
-
-      marker = new google.maps.Marker({
-        position: { lat: 19.4326, lng: -99.1332 },
-        map,
-        title: "Tu ubicación"
-      });
-    };
 
     window.startSharing = async () => {
       selectedRoute = document.getElementById("ruta").value.trim();
@@ -148,7 +153,6 @@
           return;
         }
 
-        // Ocultar formulario y mostrar botón de detener y mapa
         document.getElementById("formulario").style.display = "none";
         document.getElementById("stopButton").style.display = "inline-block";
         document.getElementById("map").style.display = "block";
@@ -198,7 +202,6 @@
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
 
-        // Mostrar formulario y ocultar botón de detener y mapa
         document.getElementById("formulario").style.display = "block";
         document.getElementById("stopButton").style.display = "none";
         document.getElementById("map").style.display = "none";
@@ -206,7 +209,6 @@
         document.getElementById("status").innerText = "🔴 Rastreo detenido";
         document.getElementById("status").style.color = "black";
 
-        // Limpiar valores y posición para seguridad
         document.getElementById("contrasena").value = "";
         lastLat = null;
         lastLng = null;
