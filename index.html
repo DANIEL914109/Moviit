@@ -47,10 +47,10 @@
     <label for="ruta">Selecciona tu ruta:</label><br>
     <select id="ruta">
       <option value="">-- Elige una ruta --</option>
-      <option value="LM-V01">LM-V01</option>
-      <option value="T01">T01</option>
-      <option value="T02">T02</option>
-      <option value="T03">T03</option>
+      <option value="LM-V01">LM-V01(Central vieja)</option>
+      <option value="LM-V01R">LM-V01(La noria)</option>
+      <option value="C47-V1">C47-V1(Dos templos)</option>
+
     </select><br>
 
     <label for="conductorId">ID de conductor:</label><br>
@@ -71,11 +71,14 @@
   <script>
     let map;
     let marker;
+    let directionsService;
+    let directionsRenderer;
 
     window.initMap = function () {
+      // Centro genérico inicial
       map = new google.maps.Map(document.getElementById("map"), {
         center: { lat: 19.4326, lng: -99.1332 },
-        zoom: 15
+        zoom: 12
       });
 
       marker = new google.maps.Marker({
@@ -83,7 +86,104 @@
         map,
         title: "Tu ubicación"
       });
+
+      directionsService = new google.maps.DirectionsService();
+      // No instanciamos directionsRenderer aquí para manejar colores dinámicos
     };
+
+    function obtenerDatosRuta(rutaSeleccionada) {
+      if (rutaSeleccionada === "LM-V01") {
+        return {
+          origen: { lat: 20.452031, lng: -103.420501 },
+          destino: { lat: 20.662764, lng: -103.345814 }, 
+          waypoints: [
+            { location: { lat: 20.664631, lng: -103.370325 }, stopover: true },
+            { location: { lat: 20.658245, lng: -103.353675 }, stopover: true },
+            { location: { lat: 20.662724, lng: -103.350227 }, stopover: true },
+          ]
+        };
+      } else if (rutaSeleccionada === "LM-V01R") {
+        return {
+          origen: { lat: 20.662764, lng: -103.345814 },
+          destino: { lat: 20.452093, lng: -103.420612 },   
+          waypoints: [
+            { location: { lat: 20.663007, lng: -103.352604 }, stopover: true }, //constituyentes y calz. del aguila
+            { location: { lat: 20.658398, lng: -103.353717 }, stopover: true }, //del aguila y washington
+            { location: { lat: 20.665238, lng: -103.372348 }, stopover: true }, //mariano otero   
+            { location: { lat: 20.476155, lng: -103.440711 }, stopover: true }, //san sebastian 
+            { location: { lat: 20.467975, lng: -103.440510 }, stopover: true }, //calle higuera 
+            { location: { lat: 20.458643, lng: -103.440889 }, stopover: true }, //cto metropolitano sur 20.460323, -103.425680
+            { location: { lat: 20.460323, lng: -103.425680 }, stopover: true }, //cam antiguo
+
+          ] // Si tienes waypoints agrégalos aquí 20.665238, -103.372348
+        };
+      } else if (rutaSeleccionada === "C47-V1") {
+        return {
+          origen: { lat: 20.594628, lng: -103.334091 },
+          destino: { lat: 20.669754, lng: -103.347026 },    
+          waypoints: [
+            { location: { lat: 20.606665, lng: -103.337170  }, stopover: true }, //delicias   
+            { location: { lat: 20.609337, lng: -103.336780  }, stopover: true }, // orozco  
+            { location: { lat: 20.614133, lng: -103.331507 }, stopover: true }, // lauro badillo  
+            { location: { lat: 20.616730, lng: -103.332171 }, stopover: true }, // rivera  
+            { location: { lat: 20.621239, lng: -103.328962 }, stopover: true }, //toneles  
+            { location: { lat: 20.622590, lng: -103.332670 }, stopover: true }, //compresor  
+            { location: { lat: 20.623540, lng: -103.331908 }, stopover: true }, //calderas  
+            { location: { lat: 20.626496, lng: -103.330191 }, stopover: true }, //lazaro cardenas
+          ] // Si tienes waypoints agrégalos aquí
+        };
+      }
+      // Puedes agregar más rutas aquí
+
+      return null; // Ruta no definida
+    }
+
+    function mostrarRuta(selectedRoute) {
+      const datosRuta = obtenerDatosRuta(selectedRoute);
+      if (!datosRuta) {
+        alert("Ruta no definida");
+        return;
+      }
+
+      // Si ya hay un renderer anterior, lo quitamos
+      if (directionsRenderer) {
+        directionsRenderer.setMap(null);
+      }
+
+      // Configura color según ruta
+      const polylineOptions = (selectedRoute === "T01") ? {
+        strokeColor: "#00FF00", // Verde para T01
+        strokeWeight: 5
+      } : (selectedRoute === "LM-V01") ? {
+        strokeColor: "#FFD700", // Amarillo para LM-V01
+        strokeWeight: 5
+      } : (selectedRoute === "LM-V01R") ? {
+        strokeColor: "#00FF00", //verde para el regreso
+        strokeWeight: 5
+      } :{
+        strokeColor: "#1976d2", // Azul para otras rutas
+        strokeWeight: 5
+      };
+
+      directionsRenderer = new google.maps.DirectionsRenderer({
+        map: map,
+        suppressMarkers: true,
+        polylineOptions: polylineOptions
+      });
+
+      directionsService.route({
+        origin: datosRuta.origen,
+        destination: datosRuta.destino,
+        waypoints: datosRuta.waypoints,
+        travelMode: google.maps.TravelMode.DRIVING
+      }, (response, status) => {
+        if (status === "OK") {
+          directionsRenderer.setDirections(response);
+        } else {
+          alert("No se pudo mostrar la ruta: " + status);
+        }
+      });
+    }
   </script>
 
   <!-- Script módulo para Firebase y lógica -->
@@ -160,6 +260,8 @@
         status.style.color = "green";
         status.innerText = "✅ Rastreo activado";
 
+        mostrarRuta(selectedRoute);
+
         if (!navigator.geolocation) {
           status.innerText = "Geolocalización no soportada";
           return;
@@ -212,6 +314,11 @@
         document.getElementById("contrasena").value = "";
         lastLat = null;
         lastLng = null;
+
+        if (directionsRenderer) {
+          directionsRenderer.setMap(null);
+          directionsRenderer = null;
+        }
       }
     };
   </script>
